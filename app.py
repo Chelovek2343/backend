@@ -1,69 +1,68 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import os
-from dotenv import load_dotenv
-from datetime import datetime
-import logging
+import networkx as nx
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Создание графа Sudoku
+def build_sudoku_graph():
+    G = nx.Graph()
+    for row in range(9):
+        for col in range(9):
+            cell = (row, col)
+            G.add_node(cell)
 
-# Load environment variables
-load_dotenv()
+            # Связи по строке и столбцу
+            for i in range(9):
+                if i != col:
+                    G.add_edge(cell, (row, i))
+                if i != row:
+                    G.add_edge(cell, (i, col))
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+            # Связи по квадрату 3x3
+            box_row = (row // 3) * 3
+            box_col = (col // 3) * 3
+            for i in range(box_row, box_row + 3):
+                for j in range(box_col, box_col + 3):
+                    if (i, j) != cell:
+                        G.add_edge(cell, (i, j))
+    return G
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    return jsonify({"status": "healthy"})
+# Жадная раскраска с учётом начальных значений
+def sudoku_coloring(graph, puzzle):
+    coloring = {}
 
-@app.route('/generate-schedule', methods=['POST'])
-def generate_schedule():
-    try:
-        data = request.get_json()
-        if not data or 'incomeData' not in data:
-            return jsonify({"error": "No income data provided"}), 400
+    # Сначала раскрасим предзаполненные клетки
+    for row in range(9):
+        for col in range(9):
+            val = puzzle[row][col]
+            if val != 0:
+                coloring[(row, col)] = val - 1  # 0-based color
 
-        income_data = data['incomeData']
-        
-        # Calculate metrics
-        total_income = sum(item['totalIncome'] for item in income_data)
-        average_payment = total_income / len(income_data)
-        min_payment = min(item['totalIncome'] for item in income_data)
-        max_payment = max(item['totalIncome'] for item in income_data)
-        
-        # Calculate remaining balance for each month
-        remaining_balance = total_income
-        schedule_data = []
-        
-        for item in income_data:
-            payment = item['totalIncome'] - item['fixedExpenses']
-            remaining_balance -= payment
-            schedule_data.append({
-                "date": item['date'],
-                "payment": float(payment),
-                "remaining_balance": float(remaining_balance)
-            })
-        
-        schedule = {
-            "metrics": {
-                "total_payments": float(total_income),
-                "average_payment": float(average_payment),
-                "min_payment": float(min_payment),
-                "max_payment": float(max_payment),
-                "completion_date": income_data[-1]['date'],
-                "total_months": len(income_data)
-            },
-            "data": schedule_data
-        }
-        
-        return jsonify(schedule)
-        
-    except Exception as e:
-        logger.error(f"Error processing data: {str(e)}")
-        return jsonify({"error": f"Error processing data: {str(e)}"}), 500
+    # Теперь раскрашиваем остальные
+    for node in graph.nodes():
+        if node not in coloring:
+            neighbor_colors = {coloring[neighbor] for neighbor in graph.neighbors(node) if neighbor in coloring}
+            for color in range(9):
+                if color not in neighbor_colors:
+                    coloring[node] = color
+                    break
+    return coloring
 
-if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+# Пример Sudoku (0 — пустая клетка)
+puzzle = [
+    [5, 3, 0, 0, 7, 0, 0, 0, 0],
+    [6, 0, 0, 1, 9, 5, 0, 0, 0],
+    [0, 9, 8, 0, 0, 0, 0, 6, 0],
+    [8, 0, 0, 0, 6, 0, 0, 0, 3],
+    [4, 0, 0, 8, 0, 3, 0, 0, 1],
+    [7, 0, 0, 0, 2, 0, 0, 0, 6],
+    [0, 6, 0, 0, 0, 0, 2, 8, 0],
+    [0, 0, 0, 4, 1, 9, 0, 0, 5],
+    [0, 0, 0, 0, 8, 0, 0, 7, 9]
+]
+
+# Создание графа и раскраска
+G = build_sudoku_graph()
+solution = sudoku_coloring(G, puzzle)
+
+# Печать результата
+print("Solved Sudoku:")
+for row in range(9):
+    print(' '.join(str(solution[(row, col)] + 1) for col in range(9)))
