@@ -1,68 +1,29 @@
 import networkx as nx
+import matplotlib.pyplot as plt
 
-# Создание графа Sudoku
-def build_sudoku_graph():
-    G = nx.Graph()
-    for row in range(9):
-        for col in range(9):
-            cell = (row, col)
-            G.add_node(cell)
-
-            # Связи по строке и столбцу
-            for i in range(9):
-                if i != col:
-                    G.add_edge(cell, (row, i))
-                if i != row:
-                    G.add_edge(cell, (i, col))
-
-            # Связи по квадрату 3x3
-            box_row = (row // 3) * 3
-            box_col = (col // 3) * 3
-            for i in range(box_row, box_row + 3):
-                for j in range(box_col, box_col + 3):
-                    if (i, j) != cell:
-                        G.add_edge(cell, (i, j))
-    return G
-
-# Жадная раскраска с учётом начальных значений
-def sudoku_coloring(graph, puzzle):
-    coloring = {}
-
-    # Сначала раскрасим предзаполненные клетки
-    for row in range(9):
-        for col in range(9):
-            val = puzzle[row][col]
-            if val != 0:
-                coloring[(row, col)] = val - 1  # 0-based color
-
-    # Теперь раскрашиваем остальные
+def greedy_coloring(graph):
+    result = {}
     for node in graph.nodes():
-        if node not in coloring:
-            neighbor_colors = {coloring[neighbor] for neighbor in graph.neighbors(node) if neighbor in coloring}
-            for color in range(9):
-                if color not in neighbor_colors:
-                    coloring[node] = color
-                    break
-    return coloring
+        neighbor_colors = {result[neighbor] for neighbor in graph.neighbors(node) if neighbor in result}
+        color = 0
+        while color in neighbor_colors:
+            color += 1
+        result[node] = color
+    return result
 
-# Пример Sudoku (0 — пустая клетка)
-puzzle = [
-    [5, 3, 0, 0, 7, 0, 0, 0, 0],
-    [6, 0, 0, 1, 9, 5, 0, 0, 0],
-    [0, 9, 8, 0, 0, 0, 0, 6, 0],
-    [8, 0, 0, 0, 6, 0, 0, 0, 3],
-    [4, 0, 0, 8, 0, 3, 0, 0, 1],
-    [7, 0, 0, 0, 2, 0, 0, 0, 6],
-    [0, 6, 0, 0, 0, 0, 2, 8, 0],
-    [0, 0, 0, 4, 1, 9, 0, 0, 5],
-    [0, 0, 0, 0, 8, 0, 0, 7, 9]
-]
+# Пример графа
+G = nx.Graph()
+edges = [('A', 'B'), ('A', 'C'), ('B', 'C'), ('B', 'D'), ('C', 'D')]
+G.add_edges_from(edges)
 
-# Создание графа и раскраска
-G = build_sudoku_graph()
-solution = sudoku_coloring(G, puzzle)
+# Раскраска
+coloring = greedy_coloring(G)
 
-# Печать результата
-print("Solved Sudoku:")
-for row in range(9):
-    print(' '.join(str(solution[(row, col)] + 1) for col in range(9)))
+# Отображаем граф
+node_colors = [coloring[node] for node in G.nodes()]
+pos = nx.spring_layout(G)
+
+plt.figure(figsize=(6, 4))
+nx.draw(G, pos, with_labels=True, node_color=node_colors, node_size=1000, cmap=plt.cm.Set3)
+plt.title("Graph Coloring with Greedy Algorithm")
+plt.show()
